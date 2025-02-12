@@ -40,6 +40,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Update="assets\manager.d.lua">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
@@ -68,13 +71,17 @@
 
 
   <ItemGroup>
-    <PackageReference Include="Chorizite.Plugins.Lua" Version="0.0.5" ExcludeAssets="runtime" />
-    <PackageReference Include="Chorizite.Plugins.RmlUi" Version="0.0.1" ExcludeAssets="runtime" />
-    <PackageReference Include="RmlUi.Net" Version="1.0.0" ExcludeAssets="runtime" />
+    <PackageReference Include="Chorizite.Plugins.Lua" Version="0.0.5" ExcludeAssets="runtime;native" />
+    <PackageReference Include="Chorizite.Plugins.RmlUi" Version="0.0.1" ExcludeAssets="runtime;native" />
     <PackageReference Include="Chorizite.Common" Version="1.0.0" ExcludeAssets="runtime" />
     <PackageReference Include="Chorizite.Core" Version="0.0.5" ExcludeAssets="runtime" />
     <PackageReference Include="Autofac" Version="8.2.0" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" ExcludeAssets="runtime" />
+    <PackageReference Include="Chorizite.Plugins.MSBuildTasks" Version="0.0.3" />
+    <PackageReference Include="GitVersion.MsBuild" Version="6.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
@@ -91,4 +98,15 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  
+  <Target Name="DeleteFiles" AfterTargets="Build">
+    <ItemGroup>
+      <FilesToDelete Include="$(OutDir)\runtimes" />
+    </ItemGroup>
+    <Message Text="Deleting Files @(FilesToDelete)" />
+    <Delete Files="@(FilesToDelete)">
+      <Output TaskParameter="DeletedFiles" ItemName="FilesDeleted" />
+    </Delete>
+    <Message Text="Files deleted: @(FilesDeleted)" />
+  </Target>
 </Project>
