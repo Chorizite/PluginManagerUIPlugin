@@ -1,7 +1,7 @@
 ﻿<rml>
 	<head>
     <title>Plugin Manager</title>
-		<link type="text/template" href="../../RmlUi/assets/templates/tabpanel.rml" />
+    <link type="text/template" href="@templates/tabpanel" />
     <script src="manager.lua"></script>
     <style>
       * {
