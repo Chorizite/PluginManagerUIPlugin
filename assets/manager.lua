@@ -14,6 +14,7 @@ local state = rx:CreateState({
   selectedPluginDetails = nil,
   installedPlugins = {},
   availablePlugins = {},
+  pluginDetails = {},
   selectedVersion = ""
 }) --[[@as PluginManagerUIState]]
 
@@ -22,28 +23,17 @@ local releases = { Plugins = {} }
 local Reload = async(function()
   state.isLoading = true 
   releases = json.decode(await(PluginManagerUI:GetReleasesJson())) --[[@as ReleaseJson]]
-  state.installedPlugins = {}
-  state.availablePlugins = {}
   
-  for i,instance in pairs(PluginManager.Plugins) do
-    local name = instance.Name
+  for i,manifest in pairs(PluginManager.PluginManifests) do
+    local name = manifest.Name
     
-    local latestVersion = ""
-    if releases.Plugins[name] then
-      local latestBeta = releases.Plugins[name].LatestBeta
-      if state.showBetas and latestBeta and versionutils.compare(instance.Manifest.Version, latestBeta.Version) < 0 then
-        latestVersion = latestBeta.Version
-      else
-        latestVersion = releases.Plugins[name].Latest.Version
-      end
-    end
     state.installedPlugins[name] = {
       name = name,
-      description = instance.Manifest.Description,
-      author = instance.Manifest.Author,
-      version = instance.Manifest.Version,
-      latestVersion = latestVersion,
+      description = manifest.Description,
+      author = manifest.Author,
+      version = manifest.Version,
       isInstalled = true,
+      icon = manifest.Icon
     }
   end
 
@@ -51,55 +41,88 @@ local Reload = async(function()
     if not state.installedPlugins[name] then
       state.availablePlugins[name] = {
         name = name,
-        version = state.showBetas and plugin.LatestBeta.Version or plugin.Latest.Version or "0.0.0",
+        version = plugin.Latest.Version or "0.0.0",
         description = plugin.Description,
         author = plugin.Author,
         isInstalled = true,
+        icon = plugin.Icon
       }
     end
   end
   state.isLoading = false
 end)
 
+local LoadPluginDetails = async(function(plugin)
+  state.selectedPluginDetails = nil
+  
+  if state.pluginDetails[plugin.name] ~= nil then
+    state.selectedPluginDetails = state.pluginDetails[plugin.name]
+  else
+    state.isLoadingDetails = true
+    local jsonResult = await(PluginManagerUI:GetPluginReleasesJson(plugin.name))
+    if jsonResult ~= nil then
+      state.pluginDetails[plugin.name] = json.decode(jsonResult)
+      state.selectedPluginDetails = state.pluginDetails[plugin.name]
+    else
+      state.selectedPluginDetails = {
+        Author = plugin.author,
+        Name = plugin.name,
+        Description = plugin.description,
+        Latest = {
+          Name = plugin.version,
+          Description = plugin.description,
+        },
+        Releases = {}
+      }
+    end
+    state.isLoadingDetails = false
+  end
+end)
+
 ---comment
 ---@param plugin PluginInfo
 ---@return CS.Core.UI.Lib.RmlUi.VDom.VirtualNode
 local PluginLineView = function(plugin)
-  return rx:Div({
-    class = "plugin",
-    onclick = function()
-      (async(function()
-        state.isLoadingDetails = true
-        state.selectedPluginDetails = nil
-        local jsonResult = await(PluginManagerUI:GetPluginReleasesJson(plugin.name))
-        if jsonResult ~= nil then
-          state.selectedPluginDetails = json.decode(jsonResult)
-        else
-          state.selectedPluginDetails = {
-            Author = plugin.author,
-            Name = plugin.name,
-            Description = plugin.description,
-            Latest = {
-              Name = plugin.version,
-              Description = plugin.description,
-            },
-            Releases = {}
-          }
-        end
-        state.isLoadingDetails = false
-      end))()
+  local latestVersion = releases.Plugins[plugin.name] and releases.Plugins[plugin.name].Latest.Version or plugin.version
+
+  if state.showBetas and releases.Plugins[plugin.name] and releases.Plugins[plugin.name].LatestBeta then
+    if versionutils.compare(plugin.version, releases.Plugins[plugin.name].LatestBeta.Version) < 0 then
+      latestVersion = releases.Plugins[plugin.name].LatestBeta.Version or ""
     end
+  end
+
+  if plugin.version == latestVersion or plugin.version == "0.0.0-dev" or versionutils.compare(plugin.version, latestVersion) > 0 then
+    latestVersion = ""
+  end
+
+  return rx:Div({
+    class = "plugin  " .. plugin.name,
+    onclick = function() LoadPluginDetails(plugin) end
   }, {
-    rx:Div({ class = "info" }, {
-      rx:H3(plugin.name, {
-        rx:Span(" by " .. plugin.author)
+    rx:Div({ class = "flex" }, {
+      rx:Div({
+        class = {
+          ["has-icon"] = plugin.icon and #plugin.icon > 0,
+          icon = true
+        }
+      }, function ()
+        if plugin.icon and #plugin.icon > 0 then
+          return { rx:Img({ src = ("@plugins/" .. plugin.name .. "/" .. plugin.icon)}) }
+        else
+          return { rx:Div() }
+        end
+      end),
+      rx:Div({ class = "info" }, {
+        rx:H3(plugin.name, {
+          rx:Span(" by " .. plugin.author)
+        }),
       }),
-      rx:P(plugin.description),
+      rx:Div({ class = "version" }, {
+        rx:Div({ class="remove" }, plugin.version),
+        rx:Div({ class="update" }, latestVersion),
+      })
     }),
-    rx:Div({ class = "version" }, {
-      rx:Div({ class="remove" }, plugin.version),
-      rx:Div({ class="update" }, plugin.latestVersion),
-    })
+    rx:P(plugin.description),
   })
 end
 
@@ -132,6 +155,18 @@ local PluginDetailsView = function()
   elseif state.selectedPluginDetails ~= nil then
     local plugin = state.selectedPluginDetails --[[@as PluginReleaseInfo]]
     return rx:Div({
+      rx:Div({
+        class = {
+          ["has-icon"] = plugin.Icon and #plugin.Icon > 0,
+          icon = true
+        }
+      }, function ()
+        if plugin.Icon and #plugin.Icon > 0 then
+          return { rx:Img({ src = ("@plugins/" .. plugin.Name .. "/" .. plugin.Icon)}) }
+        else
+          return { rx:Div() }
+        end
+      end),
       rx:H3(plugin.Name, {
         rx:Span(" by " .. plugin.Author)
       }),
@@ -168,7 +203,6 @@ local PluginDetailsView = function()
                       value = v.Version,
                       onclick = function()
                         state.selectedVersion = v.Version
-                        print("selected:", state.selectedVersion)
                       end
                     }, v.Version))
                   end
@@ -192,7 +226,6 @@ local PluginDetailsView = function()
                       end
                     end
                     if release ~= nil then
-                      print(plugin.Name, release.DownloadUrl)
                       await(PluginManagerUI:InstallPlugin(plugin.Name, release.DownloadUrl))
                     else
                       print("Could not find release:", state.selectedVersion)
@@ -231,16 +264,18 @@ end
 local PluginManagerView = function()
   return rx:Div({
     rx:Div({ class = "settings" }, {
-      rx:Input({
-        id = "show-betas",
-        type = "checkbox",
-        checked = state.showBetas,
-        onchange = function(evt)
-          state.showBetas = #evt.Params.value > 0 and true or false
-          Reload();
-        end
+      rx:Label({
+        rx:Input({
+          id = "show-betas",
+          type = "checkbox",
+          checked = state.showBetas,
+          onchange = function(evt)
+            state.showBetas = #evt.Params.value > 0 and true or false
+            -- Reload();
+          end
+        }),
+        rx:Span("Show Betas"),
       }),
-      rx:Span("Show Betas"),
       rx:Button({
         class = "refresh",
         onclick = function() Reload() end

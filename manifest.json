@@ -2,6 +2,7 @@
   "name": "PluginManagerUI",
   "author": "Chorizite",
   "entryfile": "PluginManagerUI.dll",
+  "icon":  "icon.png",
   "version": "0.0.0-dev",
   "description": "PluginManagerUI",
   "dependencies": [ "RmlUi@0.0.1" ],

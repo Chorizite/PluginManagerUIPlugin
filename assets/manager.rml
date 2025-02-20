@@ -3,6 +3,7 @@
     <title>Plugin Manager</title>
     <link type="text/template" href="@templates/tabpanel" />
     <script src="manager.lua"></script>
+    <meta name="icon" content="../icon.png" />
     <style>
       * {
         box-sizing: border-box;
@@ -44,7 +45,7 @@
 
       body h2 {
         margin: 8px 0;
-        color: #df77ff;
+        color: #d6a845;
         font-size: 20px;
       }
 
@@ -63,51 +64,58 @@
 
       .settings button, .settings button:hover, .settings button:active {
         float: right;
-        decorator: image(dat://0x060011F7);
+        decorator: image( icon-arrow );
         margin: 0;
-        padding: 12px;
+        padding: 10px;
       }
 
       .plugin {
-        display: flex;
         border-color: #ffffff77;
         border-top: 1px;
       }
 
+      .plugin .flex {
+        display: flex;
+        padding: 0 4px;
+      }
+
       .plugin:hover {
-        background-color: #f5ff6866;
+        background-color: #c293e779;
       }
 
       .plugin .info {
-        flex-grow: 2;
+        flex: 2;
+      }
+
+      div.icon img {
+        width: 24px;
+        height: 24px;
+        margin: 6px 8px 0 0;
       }
 
       .plugin p {
         padding: 0;
-        margin: 6dp 0;
+        margin: 4px 2px;
+        color: #ebdaf0;
       }
 
-      body h3 {
+      .plugin h3 {
         margin: 0;
         padding: 0;
-        font-size: 18dp;
-        white-space: nowrap;
-        color: #15ff00;
+        font-size: 16dp;
+        color: #eccff1;
       }
 
       body h3 span {
-        font-size: 12dp;
-        white-space: nowrap;
+        display: block;
+        font-size: 11dp;
+        color: #cb88d1;
       }
 
       .plugin .version {
         margin-left: 16dp;
         margin-right: 6dp;
         text-align: right;
-      }
-
-      .plugin .version div {
-        margin: 6dp 0;
       }
 
       .details h3 {
