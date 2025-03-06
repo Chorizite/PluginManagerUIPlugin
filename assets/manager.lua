@@ -18,17 +18,19 @@ local state = rx:CreateState({
   selectedVersion = ""
 }) --[[@as PluginManagerUIState]]
 
----@type ReleaseJson
+
+
+---@type CS.Chorizite.Plugins.Models.ReleasesIndexModel
 local releases = { Plugins = {} }
 local Reload = async(function()
   state.isLoading = true 
-  releases = json.decode(await(PluginManagerUI:GetReleasesJson())) --[[@as ReleaseJson]]
-  
+  releases = await(PluginManager:RefreshPluginIndex())
   for i,manifest in pairs(PluginManager.PluginManifests) do
-    local name = manifest.Name
+    local id = manifest.Id
     
-    state.installedPlugins[name] = {
-      name = name,
+    state.installedPlugins[id] = {
+      id = id,
+      name = manifest.Name,
       description = manifest.Description,
       author = manifest.Author,
       version = manifest.Version,
@@ -37,15 +39,17 @@ local Reload = async(function()
     }
   end
 
-  for name,plugin in pairs(releases.Plugins) do
-    if not state.installedPlugins[name] then
-      state.availablePlugins[name] = {
-        name = name,
+  for i,plugin in pairs(releases.Plugins) do
+    local id = releases.Plugins[i].Id
+    if not state.installedPlugins[id] then
+      state.availablePlugins[id] = {
+        id = id,
+        name = plugin.Name,
         version = plugin.Latest.Version or "0.0.0",
         description = plugin.Description,
         author = plugin.Author,
         isInstalled = true,
-        icon = plugin.Icon
+        icon = "https://chorizite.github.io/plugin-index/plugins/" .. plugin.Id .. ".png"
       }
     end
   end
@@ -55,26 +59,34 @@ end)
 local LoadPluginDetails = async(function(plugin)
   state.selectedPluginDetails = nil
   
-  if state.pluginDetails[plugin.name] ~= nil then
-    state.selectedPluginDetails = state.pluginDetails[plugin.name]
+  if state.pluginDetails[plugin.id] ~= nil then
+    print("using existing")
+    state.selectedPluginDetails = state.pluginDetails[plugin.id]
   else
     state.isLoadingDetails = true
-    local jsonResult = await(PluginManagerUI:GetPluginReleasesJson(plugin.name))
+    local jsonResult = await(PluginManager:RefreshPluginReleaseDetails(plugin.id))
+    print("using fetch json", jsonResult)
     if jsonResult ~= nil then
-      state.pluginDetails[plugin.name] = json.decode(jsonResult)
-      state.selectedPluginDetails = state.pluginDetails[plugin.name]
+      state.pluginDetails[plugin.id] = jsonResult
+      print("using fetch json ff1", jsonResult)
+      print("using fetch json ff2", state.pluginDetails[plugin.id])
+      state.selectedPluginDetails = state.pluginDetails[plugin.id]
     else
+      print("json NOT nil")
       state.selectedPluginDetails = {
+        Id = plugin.Id,
         Author = plugin.author,
         Name = plugin.name,
         Description = plugin.description,
         Latest = {
+          Id = plugin.Id,
           Name = plugin.version,
           Description = plugin.description,
         },
         Releases = {}
       }
     end
+    print("setting isLoading to false")
     state.isLoadingDetails = false
   end
 end)
@@ -83,11 +95,11 @@ end)
 ---@param plugin PluginInfo
 ---@return CS.Core.UI.Lib.RmlUi.VDom.VirtualNode
 local PluginLineView = function(plugin)
-  local latestVersion = releases.Plugins[plugin.name] and releases.Plugins[plugin.name].Latest.Version or plugin.version
+  local latestVersion = releases.Plugins[plugin.id] and releases.Plugins[plugin.id].Latest.Version or plugin.version
 
-  if state.showBetas and releases.Plugins[plugin.name] and releases.Plugins[plugin.name].LatestBeta then
-    if versionutils.compare(plugin.version, releases.Plugins[plugin.name].LatestBeta.Version) < 0 then
-      latestVersion = releases.Plugins[plugin.name].LatestBeta.Version or ""
+  if state.showBetas and releases.Plugins[plugin.id] and releases.Plugins[plugin.id].LatestBeta then
+    if versionutils.compare(plugin.version, releases.Plugins[plugin.id].LatestBeta.Version) < 0 then
+      latestVersion = releases.Plugins[plugin.id].LatestBeta.Version or ""
     end
   end
 
@@ -96,7 +108,7 @@ local PluginLineView = function(plugin)
   end
 
   return rx:Div({
-    class = "plugin  " .. plugin.name,
+    class = "plugin  " .. plugin.id,
     onclick = function() LoadPluginDetails(plugin) end
   }, {
     rx:Div({ class = "flex" }, {
@@ -107,7 +119,7 @@ local PluginLineView = function(plugin)
         }
       }, function ()
         if plugin.icon and #plugin.icon > 0 then
-          return { rx:Img({ src = ("@plugins/" .. plugin.name .. "/" .. plugin.icon)}) }
+          return { rx:Img({ src = ("@plugins/" .. plugin.id .. "/" .. plugin.icon)}) }
         else
           return { rx:Div() }
         end
@@ -150,10 +162,10 @@ local PluginsListView = function(title, plugins)
 end
 
 local PluginDetailsView = function()
+  local plugin = state.selectedPluginDetails
   if state.isLoadingDetails then
     return rx:Div("Loading: " .. state.selectedPlugin)
-  elseif state.selectedPluginDetails ~= nil then
-    local plugin = state.selectedPluginDetails --[[@as PluginReleaseInfo]]
+  elseif plugin ~= nil then
     return rx:Div({
       rx:Div({
         class = {
@@ -162,7 +174,7 @@ local PluginDetailsView = function()
         }
       }, function ()
         if plugin.Icon and #plugin.Icon > 0 then
-          return { rx:Img({ src = ("@plugins/" .. plugin.Name .. "/" .. plugin.Icon)}) }
+          return { rx:Img({ src = ("@plugins/" .. plugin.Id .. "/" .. plugin.Icon)}) }
         else
           return { rx:Div() }
         end
@@ -173,22 +185,22 @@ local PluginDetailsView = function()
       rx:Div(function()
         local res = {}
 
-        if state.installedPlugins ~= nil and state.installedPlugins[plugin.Name] ~= nil then
-          local installed = state.installedPlugins[plugin.Name]
+        if state.installedPlugins ~= nil and state.installedPlugins[plugin.Id] ~= nil then
+          local installed = state.installedPlugins[plugin.Id]
           table.insert(res, rx:Div({ class = "action" }, {
             rx:Div("Installed: " .. installed.version, { class = "install"}),
             rx:Button({ 
               class = "secondary uninstall",
               onclick = function()
                 (async(function()
-                  await(PluginManagerUI:UninstallPlugin(plugin.Name))
+                  await(PluginManagerUI:UninstallPlugin(plugin.Id))
                 end))()
               end
             }, "Uninstall"),
           }))
         end
 
-        if #plugin.Releases > 0 then
+        if plugin.Releases and plugin.Releases.Count > 0 then
           table.insert(res, rx:Div({ class = "action" }, {
             rx:Div("Version: ", { class="update" }, {
               rx:Select({ id = "selected-version"}, {
@@ -197,7 +209,7 @@ local PluginDetailsView = function()
                 end
               }, function()
                 local res = {}
-                for k,v in ipairs(plugin.Releases) do
+                for k,v in pairs(plugin.Releases) do
                   if state.showBetas or v.IsBeta == false then 
                     table.insert(res, rx:Option({
                       value = v.Version,
@@ -212,21 +224,21 @@ local PluginDetailsView = function()
             }),
             rx:Button({ 
               class = "secondary update",
-              disabled = state.installedPlugins and state.installedPlugins[plugin.Name] and state.selectedVersion == state.installedPlugins[plugin.Name].version,
+              disabled = state.installedPlugins and state.installedPlugins[plugin.Id] and state.selectedVersion == state.installedPlugins[plugin.Id].version,
               onclick = function()
                 print("click")
-                if state.installedPlugins and state.installedPlugins[plugin.Name] and state.selectedVersion == state.installedPlugins[plugin.Name].version then
+                if state.installedPlugins and state.installedPlugins[plugin.Id] and state.selectedVersion == state.installedPlugins[plugin.Id].version then
                   return
                 else
                   (async(function()
                     local release = nil;
-                    for k,v in ipairs(plugin.Releases) do
+                    for k,v in pairs(plugin.Releases) do
                       if v.Version == state.selectedVersion then 
                         release = v
                       end
                     end
                     if release ~= nil then
-                      await(PluginManagerUI:InstallPlugin(plugin.Name, release.DownloadUrl))
+                      await(PluginManagerUI:InstallPlugin(plugin.Id, release.DownloadUrl))
                     else
                       print("Could not find release:", state.selectedVersion)
                     end
@@ -243,10 +255,10 @@ local PluginDetailsView = function()
       rx:H3("Changelog:"),
       rx:Div({ class = "release" }, function()
         local res = {}
-        for k,v in ipairs(plugin.Releases) do
+        for k,v in pairs(plugin.Releases) do
           if state.showBetas or v.IsBeta == false then 
             table.insert(res, rx:Div({
-              rx:H5(v.Name .. " (" .. v.Date .. ")"),
+              rx:H5(v.Name .. " (" .. v.Updated:ToString() .. ")"),
               rx:P(v.Changelog)
             }))
           end
