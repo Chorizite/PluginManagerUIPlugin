@@ -10,7 +10,7 @@
       }
 
       body {
-        font-family: Tahoma;
+        font-family: Palatino Linotype;
         width: 600px;
       }
 

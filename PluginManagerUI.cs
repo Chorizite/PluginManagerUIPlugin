@@ -11,20 +11,31 @@ using RmlUi;
 using RmlUi.Lib;
 
 namespace PluginManagerUI {
+    /// <summary>
+    /// Plugin manager UI
+    /// </summary>
     public class PluginManagerUICore : IPluginCore {
-        internal static ILogger Log;
+        internal static ILogger? Log;
         private Panel? _panel;
         private HttpClient _http = new HttpClient();
 
         internal RmlUiPlugin UI { get; }
         internal IPluginManager Manager { get; }
 
+        /// <summary>
+        /// Plugin manager UI
+        /// </summary>
+        /// <param name="manifest"></param>
+        /// <param name="manager"></param>
+        /// <param name="coreUI"></param>
+        /// <param name="log"></param>
         protected PluginManagerUICore(AssemblyPluginManifest manifest, IPluginManager manager, RmlUiPlugin coreUI, ILogger log) : base(manifest) {
             Log = log;
             UI = coreUI;
             Manager = manager;
         }
 
+        /// <inheritdoc/>
         protected override void Initialize() {
             _panel = UI.CreatePanel("PluginManagerUI", Path.Combine(AssemblyDirectory, "assets", "manager.rml"));
             
@@ -34,52 +45,36 @@ namespace PluginManagerUI {
         }
 
         /// <summary>
-        /// Get the releases json
+        /// Uninstall a plugin
         /// </summary>
+        /// <param name="id"></param>
+        /// <param name="reload"></param>
         /// <returns></returns>
-        public async Task<string> GetReleasesJson() {
-            // download the releases json
-            var releases = await _http.GetStringAsync("https://chorizite.github.io/plugin-index/index.json");
-            return releases;
-        }
-
-        /// <summary>
-        /// Get release json for a specific plugin
-        /// </summary>
-        /// <param name="name">The name of the plugin</param>
-        /// <returns>Release json</returns>
-        public async Task<string?> GetPluginReleasesJson(string name) {
+        public bool UninstallPlugin(string id, bool reload = true) {
             try {
-                var releases = await _http.GetStringAsync($"https://chorizite.github.io/plugin-index/plugins/{name}.json");
-                return releases;
-            }
-            catch {
-                return null;
-            }
-        }
-
-        public async Task<bool> UninstallPlugin(string name) {
-            try {
-                if (Directory.Exists(Path.Combine(Manager.PluginDirectory, name))) {
-                    Directory.Delete(Path.Combine(Manager.PluginDirectory, name), true);
-                    Manager.ReloadPlugins();
+                if (Directory.Exists(Path.Combine(Manager.PluginDirectory, id))) {
+                    Directory.Delete(Path.Combine(Manager.PluginDirectory, id), true);
+                    if (reload) {
+                        Manager.ReloadPlugins();
+                    }
                     return true;
                 }
                 return false;
             }
             catch (Exception ex) {
-                Log.LogError(ex, "Failed to uninstall plugin");
+                Log?.LogError(ex, "Failed to uninstall plugin");
                 return false;
             }
         }
 
         /// <summary>
-        /// Install a plugin by name and zip url / file
+        /// Install a plugin by id and zip url / file
         /// </summary>
-        /// <param name="name">The name of the plugin</param>
+        /// <param name="id">The id of the plugin</param>
         /// <param name="zipUri">A url or local file path to the zip that contains the plugin.</param>
+        /// <param name="reload"></param>
         /// <returns>True if successful</returns>
-        public async Task<bool> InstallPlugin(string name, string zipUri) {
+        public async Task<bool> InstallPlugin(string id, string zipUri, bool reload = true) {
             var zipTmpPath = Path.GetTempFileName();
             try {
                 byte[] zipBytes;
@@ -91,19 +86,22 @@ namespace PluginManagerUI {
                 }
                 File.WriteAllBytes(zipTmpPath, zipBytes);
                 var zip = ZipFile.OpenRead(zipTmpPath);
-                var pluginDir = Path.Combine(Manager.PluginDirectory, name);
+                var pluginDir = Path.Combine(Manager.PluginDirectory, id);
                 if (Directory.Exists(pluginDir)) {
-                    //Directory.Delete(pluginDir, true);
+                    Directory.Delete(pluginDir, true);
                 }
                 if (!Directory.Exists(pluginDir)) {
                     Directory.CreateDirectory(pluginDir);
                 }
                 zip.ExtractToDirectory(pluginDir, true);
-                Manager.ReloadPlugins();
+                
+                if (reload) {
+                    Manager.ReloadPlugins();
+                }
                 return true;
             }
             catch (Exception ex) {
-                Log.LogError(ex, "Failed to install plugin");
+                Log?.LogError(ex, "Failed to install plugin");
                 return false;
             }
             finally {
@@ -114,6 +112,7 @@ namespace PluginManagerUI {
             }
         }
 
+        /// <inheritdoc/>
         protected override void Dispose() {
             _panel?.Dispose();
             _http?.Dispose();

@@ -1,10 +1,11 @@
 {
-  "name": "PluginManagerUI",
+  "id": "PluginManagerUI",
+  "name": "Plugin Manager UI",
   "author": "Chorizite",
   "entryfile": "PluginManagerUI.dll",
-  "icon":  "icon.png",
+  "icon": "icon.png",
   "version": "0.0.0-dev",
-  "description": "PluginManagerUI",
+  "description": "A UI for managing plugins in both the launcher and client.",
   "dependencies": [ "RmlUi@0.0.1" ],
   "environments": [ "Client", "Launcher" ]
 }
